@@ -7,7 +7,7 @@ from g4f import Provider, ChatCompletion
 import flet as ft
 from flet import FilePicker, FilePickerUploadFile
 
-os.environ["FLET_SECRET_KEY"] = "0"
+os.environ["FLET_SECRET_KEY"] = "0"  # Required for FilePicker to work
 
 
 def complete_message(messages: list, client) -> ChatCompletion:
@@ -24,7 +24,8 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.scroll = ft.ScrollMode.ALWAYS
     chat = ft.Column(scroll=ft.ScrollMode.ALWAYS)
-    new_message = ft.TextField()
+    page_width = page.width
+    new_message = ft.TextField(multiline=True, label="Nachricht")
     client = Client()
     message_conv = [{"role": "system", "content": "Hallo, ich bin ein Bot. Ich kann Ihnen bei Ihrer Finanzanalyse helfen, ich werde keine Emojis benutzen und verwende markdown in utf-8."}]
 
@@ -49,6 +50,8 @@ def main(page: ft.Page):
 
     def upload_files(e):
         file_picker.pick_files(allow_multiple=False, allowed_extensions=["xlsx", "xls"])
+        paste.disabled = False
+        page.update()
 
     def add_table(table_file, area: tuple[str, str, str, str]) -> None:
         print(table_file, area)
@@ -60,7 +63,7 @@ def main(page: ft.Page):
             [ft.Icon(name=ft.icons.PERSON),
              ft.Text(value="Du")]),
             ft.Container(
-                content=ft.Text(f"Tabelle {table_file} eingefügt."), width=900
+                content=ft.Text(f"Tabelle {table_file} eingefügt."), width=page_width // 2
             )], wrap=True))
         table_response = get_response(message_conv)
         send.disabled = False
@@ -73,7 +76,7 @@ def main(page: ft.Page):
                     selectable=True,
                     extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
                     on_tap_link=lambda e: page.launch_url(e.data),
-                ), width=900
+                ), width=page_width // 2
             )
             ], wrap=True))
         page.update()
@@ -108,7 +111,7 @@ def main(page: ft.Page):
                         selectable=True,
                         extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
                         on_tap_link=lambda e: page.launch_url(e.data),
-                    ), width=900)]))
+                    ), width=page_width // 2)]))
         message_conv.append({"role": "user", "content": new_message.value})
         new_message.value = ""
         send.disabled = True
@@ -123,47 +126,36 @@ def main(page: ft.Page):
                         selectable=True,
                         extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
                         on_tap_link=lambda e: page.launch_url(e.data),
-                    ), width=900
+                    ), width=page_width // 2
             )], wrap=True))
         send.disabled = False
         page.update()
 
 
     page.add(
-        chat, ft.Row(controls=[new_message, (send := ft.ElevatedButton("Senden", on_click=send_click)),
-                               (up := ft.ElevatedButton("Upload", on_click=upload_files)),
-                               (file_picker := ft.FilePicker(on_result=on_dialog_result)),
-                               (area_0 := ft.TextField("4",keyboard_type=ft.KeyboardType.NUMBER)),
-                               (area_1 := ft.TextField("14", keyboard_type=ft.KeyboardType.NUMBER)),
-                               (area_2 := ft.TextField("1", keyboard_type=ft.KeyboardType.NUMBER)),
-                               (area_3 := ft.TextField("15", keyboard_type=ft.KeyboardType.NUMBER)),
-                               (paste := ft.ElevatedButton("Einfügen", on_click=add_table_e))])
+        ft.Row(controls=[ft.Column(controls=[ft.Container(content=chat, width=page_width // 2 + 50, border=ft.border.all(1), padding=15),
+            ft.Row(controls=[new_message, (send := ft.ElevatedButton("Senden", on_click=send_click)),
+                             (paste := ft.ElevatedButton("Einfügen", on_click=add_table_e)),
+                             (up := ft.ElevatedButton("Upload", on_click=upload_files)),
+                             (file_picker := ft.FilePicker(on_result=on_dialog_result)),
+                             ]),
+            ft.Column(controls=[
+                ft.Row(controls=[ft.Text("Zeilenbereich:"), (area_0 := ft.TextField("4", keyboard_type=ft.KeyboardType.NUMBER, dense=True, label="von Zeile")),
+                                 (area_1 := ft.TextField("14", keyboard_type=ft.KeyboardType.NUMBER, dense=True, label="bis Zeile"))]),
+                ft.Row(controls=[ft.Text("Spaltenbereich:"), (area_2 := ft.TextField("1", keyboard_type=ft.KeyboardType.NUMBER, dense=True, label="von Spalte")),
+                                 (area_3 := ft.TextField("15", keyboard_type=ft.KeyboardType.NUMBER, dense=True, label="bis Spalte"))]),
+            ]),
+        ])], alignment=ft.MainAxisAlignment.CENTER),
     )
     send.disabled = True
+    paste.disabled = True
     chat.controls.append(ft.Column([ft.Row(
         [ft.Icon(name=ft.icons.ANALYTICS),
          ft.Text(value="Finanz Bot")]),
-        ft.Text("Bitte laden Sie eine Tabelle hoch und geben Sie den Bereich an, den Sie analysieren möchten.")]))
+        ft.Text("Bitte laden Sie eine Tabelle hoch und geben Sie den Bereich an, den Sie analysieren möchten.\n"
+                "Dann können Sie Einfügen drücken")]))
     page.update()
 
 
-
-ft.app(target=main, view=ft.AppView.WEB_BROWSER, name="Finanzanalyse", upload_dir="uploads")
-
 if __name__ == "__main__":
-
-    exit()
-    message = []
-    client = Client()
-    df = pd.read_excel("Gewinn_und_Verlust.xlsx")
-    pprint((table := df.iloc[4:14, 1:15].to_dict()))
-    try:
-        message.append({"role": "system", "content": "Hallo, ich bin ein Bot. Ich kann Ihnen bei Ihrer Finanzanalyse helfen und werde keine Emojis benutzen."})
-        message.append({"role": "user", "content": json.dumps(table)})
-        while True:
-            response = complete_message(message)
-            print(response.choices[0].message.content)
-            message.append({"role": "user", "content": input("You: ")})
-    except KeyboardInterrupt:
-        print("Goodbye")
-
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, name="Finanzanalyse", upload_dir="uploads")
